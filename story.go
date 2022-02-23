@@ -89,12 +89,25 @@ func init() {
 
 var tpl *template.Template
 
-func NewHandler(s Story) http.Handler {
-	return handler{s}
+type HandlerOptions func(h *handler)
+
+func WithTemplate (t *template.Template) HandlerOptions {
+    return func(h *handler) {
+        h.t = t
+    }
+}
+
+func NewHandler(s Story, opts ...HandlerOptions) http.Handler {
+    h := handler{s, tpl}
+    for _, opt := range opts {
+        opt(&h)
+    }
+	return h
 }
 
 type handler struct {
 	s Story
+    t *template.Template
 }
 
 func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +118,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path = path[1:]
 
 	if chapter, ok := h.s[path]; ok {
-		err := tpl.Execute(w, chapter)
+		err := h.t.Execute(w, chapter)
 		if err != nil {
 			log.Printf("%v", err)
 			http.Error(w, "Something went wrong", http.StatusInternalServerError)
@@ -113,7 +126,6 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Error(w, "Chapter not found", http.StatusNotFound)
-
 }
 
 func JsonStory(r io.Reader) (Story, error) {
